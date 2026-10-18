@@ -99,14 +99,15 @@ button:focus-visible{outline:2px solid #9db3d8;outline-offset:2px}
 
 <script>
 // Parámetros de URL: ID, Nombre, Numero, Direccion, FechaViaje, Items, Envio, Total
-// Items: filas separadas por "~"; cada fila = Producto^Precio^Cantidad^TotalFila
+// Productos, Precios, Cantidades, Totales: listas separadas por "~" (misma posición = misma fila)
+// (opcional, formato anterior) Items: filas separadas por "~"; cada fila = Producto^Precio^Cantidad^TotalFila
 const p = new URLSearchParams(location.search);
 const demo = {
   ID:"001", Nombre:"Daniel de Leon", Numero:"77147113", Direccion:"San Salvador",
   FechaViaje:"1 viaje Octubre", Items:"Facturas varias^45^1^45~Documentos legales^15^2^30~Paquete de ropa^153^1^153~Caja de repuestos automotrices con empaque especial^35.5^2^71~Medicamentos^12^1^12", Envio:"2", Total:"313"
 };
-const usarDemo = !p.has("ID") && !p.has("Items");
-const g = k => (p.get(k) ?? (usarDemo ? demo[k] : "")).trim();
+const usarDemo = !p.has("ID") && !p.has("Items") && !p.has("Productos");
+const g = k => (p.get(k) ?? (usarDemo ? (demo[k] ?? "") : "")).trim();
 const num = v => parseFloat(String(v).replace(/[^0-9.\-]/g,"")) || 0;
 const money = n => "$" + n.toFixed(2);
 const cant = n => Number.isInteger(n) ? String(n) : n.toFixed(2);
@@ -121,8 +122,14 @@ if (!g("FechaViaje")) document.getElementById("filaViaje").hidden = true;
 
 const filas = document.getElementById("filas");
 let suma = 0;
-g("Items").split("~").filter(Boolean).forEach(l => {
-  const [prod = "", precio = "0", c = "0", tot = "0"] = l.split("^");
+const datos = [];
+if (g("Productos")) {
+  const P = g("Productos").split("~"), PR = g("Precios").split("~"), C = g("Cantidades").split("~"), T = g("Totales").split("~");
+  P.forEach((x, i) => datos.push([x, PR[i], C[i], T[i]]));
+} else {
+  g("Items").split("~").filter(Boolean).forEach(l => datos.push(l.split("^")));
+}
+datos.forEach(([prod = "", precio = "0", c = "0", tot = "0"]) => {
   const t = num(tot);
   suma += t;
   const tr = document.createElement("tr");
@@ -142,7 +149,11 @@ document.getElementById("compartir").addEventListener("click", async e => {
   const btn = e.currentTarget;
   btn.disabled = true;
   try {
-    const canvas = await html2canvas(document.getElementById("ticket"), {scale:3, backgroundColor:"#ffffff"});
+    const tw = document.getElementById("ticket").offsetWidth;
+    const canvas = await html2canvas(document.getElementById("captura"), {
+      scale:3, backgroundColor:"#ffffff",
+      onclone: d => { d.getElementById("captura").style.cssText = "padding:22px;background:#fff;box-sizing:content-box;max-width:none;width:" + tw + "px"; }
+    });
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const file = new File([blob], "ticket-" + (g("ID") || "envio") + ".png", {type:"image/png"});
     if (navigator.canShare && navigator.canShare({files:[file]})) {
